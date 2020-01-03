@@ -78,11 +78,16 @@ TempSpawn *tempSpawn;
 }
 
 -(void)applicationProcessStateDidChange:(id)notification {
-	if ([notification object] && [NSStringFromClass([[notification object] class]) isEqualToString:@"SBApplication"]) {
+	if ([notification object]) {
 		SBApplication *app = (SBApplication*)[notification object];
 
-		if ([app isSystemApplication])
-			return; 
+		@try {
+			if ([app isSystemApplication])
+				return; 
+		}
+		@catch (NSException *exception) {
+			return;
+		}
 
 		if ([[app processState] isRunning]) {
 			TempSpawnProcessState *previousProcessState = self.processStates[[app bundleIdentifier]];
