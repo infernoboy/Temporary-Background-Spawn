@@ -14,13 +14,14 @@ TempSpawn *tempSpawn;
 
 
 @implementation TempSpawnProcessState
--(TempSpawnProcessState*)initWithProcessState:(SBApplicationProcessState*)processState {
+-(TempSpawnProcessState*)initWithProcessState:(SBApplicationProcessState*)processState app:(SBApplication*)app {
 	self = [super init];
 
 	_launchedInBackground = NO;
 
 	self.seen = NO;
 	self.processState = processState;
+	self.app = app;
 
 	return self;
 }
@@ -123,7 +124,7 @@ TempSpawn *tempSpawn;
 						previousProcessState.launchedInBackground = NO;
 					}
 				} else
-					previousProcessState = [[TempSpawnProcessState alloc] initWithProcessState:[app processState]];
+					previousProcessState = [[TempSpawnProcessState alloc] initWithProcessState:[app processState] app:app];
 
 				if ([[app processState] visibility] == 1 && ![previousProcessState launchedInBackground]) {
 					NSLog(@"Launched in background: %@", [app bundleIdentifier]);
@@ -143,6 +144,7 @@ TempSpawn *tempSpawn;
 			}
 
 			previousProcessState.processState = [app processState];
+			previousProcessState.app = app;
 
 			self.processStates[[app bundleIdentifier]] = previousProcessState;
 		} else {
@@ -180,6 +182,13 @@ TempSpawn *tempSpawn;
 }
 
 -(void)terminateAppNow:(NSString*)bundleIdentifier withReason:(NSString*)reason {
+	TempSpawnProcessState *previousProcessState = self.processStates[bundleIdentifier];
+	
+	if (previousProcessState && ([previousProcessState.app isPlayingAudio] || [previousProcessState.app isNowRecordingApplication] || [previousProcessState.app isConnectedToExternalAccessory])) {
+    	NSLog(@"Refusing to terminate %@ because audio or accessory is active.", bundleIdentifier);
+    	return;
+	}
+	
 	NSLog(@"Terminating %@ due to %@", bundleIdentifier, reason);
 
 	[self cancelTerminationTimer:bundleIdentifier];

@@ -9,12 +9,16 @@
 -(BOOL)isSystemApplication;
 -(NSString *)bundleIdentifier;
 -(SBApplicationProcessState *)processState;
+-(BOOL)isPlayingAudio;
+-(BOOL)isNowRecordingApplication;
+-(BOOL)isConnectedToExternalAccessory;
 @end
 
 @interface TempSpawnProcessState : NSObject
 @property BOOL seen;
 @property (nonatomic) BOOL launchedInBackground;
 @property SBApplicationProcessState *processState;
+@property SBApplication *app;
 @end;
 
 @interface TempSpawn : NSObject
