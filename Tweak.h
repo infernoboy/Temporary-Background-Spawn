@@ -24,8 +24,11 @@
 @interface TempSpawn : NSObject
 @property NSMutableDictionary<NSString*, NSTimer*> *terminationTimers;
 @property NSMutableDictionary<NSString*, TempSpawnProcessState*> *processStates;
+@property NSDictionary *blacklist;
 
 -(void)addObservers;
+-(void)loadBlacklist;
+-(BOOL)isBlacklisted:(NSString*)bundleIdentifier;
 -(void)terminateAppFromTimer:(NSTimer*)timer;
 -(void)terminateAppSoon:(NSString*)bundleIdentifier;
 -(void)terminateAppNow:(NSString*)bundleIdentifier withReason:(NSString*)reason;

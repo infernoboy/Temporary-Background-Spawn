@@ -8,9 +8,16 @@
 
 extern "C" void BKSTerminateApplicationForReasonAndReportWithDescription(NSString *bundleIdentifier, int reasonID, bool report, NSString *description);
 
+NSString *blacklistPlist = @"file:///var/mobile/Library/Preferences/com.toggleable.tempspawn~blacklist.plist";
+
 long terminateDelay = 30.0;
 
 TempSpawn *tempSpawn;
+
+static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+	[tempSpawn loadBlacklist];
+
+}
 
 
 @implementation TempSpawnProcessState
@@ -39,12 +46,34 @@ TempSpawn *tempSpawn;
 	self.terminationTimers = [NSMutableDictionary dictionary];
 	self.processStates = [NSMutableDictionary dictionary];
 
+	[self loadBlacklist];
+
 	return self;
 }
 
 -(void)addObservers {
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationProcessStateDidChange:) name:@"SBApplicationProcessStateDidChange" object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(callStatusChanged:) name:@"TUCallCenterCallStatusChangedNotification" object:nil];
+	
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)blacklistChanged, CFSTR("com.toggleable.tempspawn~blacklistChanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+}
+
+-(void)loadBlacklist {
+	NSError *error;
+
+	self.blacklist = [NSDictionary dictionaryWithContentsOfURL:[NSURL URLWithString:blacklistPlist] error:&error];
+
+	if (error) {
+		NSLog(@"Blacklist not found or corrupted.");
+
+		self.blacklist = @{};
+	}
+
+	NSLog(@"Blacklist loaded: %@", self.blacklist);
+}
+
+-(BOOL)isBlacklisted:(NSString*)bundleIdentifier {
+	return [[self.blacklist objectForKey:bundleIdentifier] boolValue];
 }
 
 -(void)callStatusChanged:(id)notification {
@@ -171,6 +200,11 @@ TempSpawn *tempSpawn;
 }
 
 -(void)terminateAppSoon:(NSString*)bundleIdentifier {
+	if ([self isBlacklisted:bundleIdentifier]) {
+		NSLog(@"terminateAppSoon blacklisted: %@", bundleIdentifier);
+		return;
+	}
+
 	NSLog(@"Terminating soon: %@", bundleIdentifier);
 
 	NSTimer *timer = self.terminationTimers[bundleIdentifier];
@@ -182,11 +216,16 @@ TempSpawn *tempSpawn;
 }
 
 -(void)terminateAppNow:(NSString*)bundleIdentifier withReason:(NSString*)reason {
+	if ([self isBlacklisted:bundleIdentifier]) {
+		NSLog(@"terminateAppNow blacklisted: %@", bundleIdentifier);
+		return;
+	}
+
 	TempSpawnProcessState *previousProcessState = self.processStates[bundleIdentifier];
 	
 	if (previousProcessState && ([previousProcessState.app isPlayingAudio] || [previousProcessState.app isNowRecordingApplication] || [previousProcessState.app isConnectedToExternalAccessory])) {
-    	NSLog(@"Refusing to terminate %@ because audio or accessory is active.", bundleIdentifier);
-    	return;
+		NSLog(@"Refusing to terminate %@ because audio or accessory is active.", bundleIdentifier);
+		return;
 	}
 	
 	NSLog(@"Terminating %@ due to %@", bundleIdentifier, reason);

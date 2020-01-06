@@ -10,5 +10,9 @@ ADDITIONAL_OBJCFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 
+SUBPROJECTS += preferences
+
+include $(THEOS_MAKE_PATH)/aggregate.mk
+
 after-install::
-	install.exec "sbreload"
+	install.exec "killall Preferences"
