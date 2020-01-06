@@ -9,13 +9,14 @@
 extern "C" void BKSTerminateApplicationForReasonAndReportWithDescription(NSString *bundleIdentifier, int reasonID, bool report, NSString *description);
 
 NSString *blacklistPlist = @"file:///var/mobile/Library/Preferences/com.toggleable.tempspawn~blacklist.plist";
+NSString *systemBlacklistPlist = @"file:///Library/PreferenceBundles/TempSpawnPreferences.bundle/system-blacklist.plist";
 
 long terminateDelay = 30.0;
 
 TempSpawn *tempSpawn;
 
 static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
-	[tempSpawn loadBlacklist];
+	[tempSpawn loadUserBlacklist];
 
 }
 
@@ -46,7 +47,8 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 	self.terminationTimers = [NSMutableDictionary dictionary];
 	self.processStates = [NSMutableDictionary dictionary];
 
-	[self loadBlacklist];
+	[self loadUserBlacklist];
+	[self loadSystemBlacklist];
 
 	return self;
 }
@@ -58,22 +60,36 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)blacklistChanged, CFSTR("com.toggleable.tempspawn~blacklistChanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 }
 
--(void)loadBlacklist {
+-(void)loadUserBlacklist {
 	NSError *error;
 
-	self.blacklist = [NSDictionary dictionaryWithContentsOfURL:[NSURL URLWithString:blacklistPlist] error:&error];
+	self.userBlacklist = [NSDictionary dictionaryWithContentsOfURL:[NSURL URLWithString:blacklistPlist] error:&error];
 
 	if (error) {
 		NSLog(@"Blacklist not found or corrupted.");
 
-		self.blacklist = @{};
+		self.userBlacklist = @{};
 	}
 
-	NSLog(@"Blacklist loaded: %@", self.blacklist);
+	NSLog(@"Blacklist loaded: %@", self.userBlacklist);
+}
+
+-(void)loadSystemBlacklist {
+	NSError *error;
+
+	self.systemBlacklist = [NSDictionary dictionaryWithContentsOfURL:[NSURL URLWithString:systemBlacklistPlist] error:&error];
+
+	if (error) {
+		NSLog(@"System blacklist not found or corrupted.");
+
+		self.systemBlacklist = @{};
+	}
+
+	NSLog(@"System blacklist loaded: %@", self.systemBlacklist);
 }
 
 -(BOOL)isBlacklisted:(NSString*)bundleIdentifier {
-	return [[self.blacklist objectForKey:bundleIdentifier] boolValue];
+	return [[self.userBlacklist objectForKey:bundleIdentifier] boolValue] || [[self.systemBlacklist objectForKey:bundleIdentifier] boolValue];
 }
 
 -(void)callStatusChanged:(id)notification {
@@ -112,8 +128,7 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 		SBApplication *app = (SBApplication*)[notification object];
 
 		@try {
-			if ([app isSystemApplication])
-				return; 
+			if ([app isSystemApplication]) {}
 		}
 		@catch (NSException *exception) {
 			return;
@@ -129,7 +144,7 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 					// NSLog(@"previousProcessState for %@: %@", [app bundleIdentifier], previousProcessState);
 
 					if (![previousProcessState launchedInBackground] && [previousProcessState seen]) {
-						NSLog(@"Ignoring already seen app: %@", [app bundleIdentifier]);
+						// NSLog(@"Ignoring already seen app: %@", [app bundleIdentifier]);
 						return;
 					}
 

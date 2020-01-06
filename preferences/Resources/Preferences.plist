@@ -34,19 +34,6 @@
 			<false/>
 			<key>ALChangeNotification</key>
 			<string>com.toggleable.tempspawn~blacklistChanged</string>
-			<key>ALSectionDescriptors</key>
-			<array>
-				<dict>
-					<key>title</key>
-					<string> </string>
-					<key>predicate</key>
-					<string>isSystemApplication = FALSE</string>
-					<key>cell-class-name</key>
-					<string>ALSwitchCell</string>
-					<key>icon-size</key>
-					<integer>29</integer>
-				</dict>
-			</array>
 		</dict>
 
 		<dict>

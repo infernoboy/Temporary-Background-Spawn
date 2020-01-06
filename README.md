@@ -2,6 +2,6 @@
 
 Kills apps spawned in the background after 30 seconds, or as soon as background activity ceases.
 
-Requires iOS 12+
+Can select apps that are allowed to stay open.
 
-No options to configure.
+Requires iOS 12+
