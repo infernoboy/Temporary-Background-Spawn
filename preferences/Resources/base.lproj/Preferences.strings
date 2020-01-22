@@ -4,8 +4,6 @@
 	"CONTACT" = "Contact Me";
 	"AUTHOR" = "Created and maintained by Travis Roman.";
 	"BLACKLIST" = "Apps allowed to remain open";
-	"USER_APPS" = "User Applications";
-	"SYSTEM_APPS" = "System Applications";
 	"BLACKLIST_DESCRIPTION" = "Changes take effect immediately.
 
 Useful for apps such as:

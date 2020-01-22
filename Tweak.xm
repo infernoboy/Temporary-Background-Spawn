@@ -8,7 +8,7 @@
 
 extern "C" void BKSTerminateApplicationForReasonAndReportWithDescription(NSString *bundleIdentifier, int reasonID, bool report, NSString *description);
 
-NSString *blacklistPlist = @"file:///var/mobile/Library/Preferences/com.toggleable.tempspawn~blacklist.plist";
+NSString *userBlacklistPlist = @"com.toggleable.tempspawn~blacklist";
 NSString *systemBlacklistPlist = @"file:///Library/PreferenceBundles/TempSpawnPreferences.bundle/system-blacklist.plist";
 
 long terminateDelay = 30.0;
@@ -17,7 +17,6 @@ TempSpawn *tempSpawn;
 
 static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
 	[tempSpawn loadUserBlacklist];
-
 }
 
 
@@ -61,17 +60,15 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 }
 
 -(void)loadUserBlacklist {
-	NSError *error;
+	if ([self.userBlacklist isKindOfClass:[NSUserDefaults class]]) {
+		[self.userBlacklist synchronize];
 
-	self.userBlacklist = [NSDictionary dictionaryWithContentsOfURL:[NSURL URLWithString:blacklistPlist] error:&error];
+		NSLog(@"User blacklist synchronized.");
+	}	else {
+		self.userBlacklist = [[NSUserDefaults alloc] initWithSuiteName:userBlacklistPlist];
 
-	if (error) {
-		NSLog(@"Blacklist not found or corrupted.");
-
-		self.userBlacklist = @{};
+		NSLog(@"User blacklist loaded: %@", self.userBlacklist);
 	}
-
-	NSLog(@"Blacklist loaded: %@", self.userBlacklist);
 }
 
 -(void)loadSystemBlacklist {
@@ -89,7 +86,7 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 }
 
 -(BOOL)isBlacklisted:(NSString*)bundleIdentifier {
-	return [[self.userBlacklist objectForKey:bundleIdentifier] boolValue] || [[self.systemBlacklist objectForKey:bundleIdentifier] boolValue];
+	return [self.userBlacklist boolForKey:bundleIdentifier] || [self.systemBlacklist[bundleIdentifier] boolValue];
 }
 
 -(void)callStatusChanged:(id)notification {
