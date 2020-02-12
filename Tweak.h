@@ -8,6 +8,7 @@
 @interface SBApplication : NSObject
 -(BOOL)isSystemApplication;
 -(NSString *)bundleIdentifier;
+-(NSString *)displayName;
 -(SBApplicationProcessState *)processState;
 -(BOOL)isPlayingAudio;
 -(BOOL)isNowRecordingApplication;
@@ -18,18 +19,24 @@
 @property BOOL seen;
 @property (nonatomic) BOOL launchedInBackground;
 @property SBApplicationProcessState *processState;
+@property NSString *displayName;
 @property SBApplication *app;
 @end;
 
 @interface TempSpawn : NSObject
 @property NSMutableDictionary<NSString*, NSTimer*> *terminationTimers;
 @property NSMutableDictionary<NSString*, TempSpawnProcessState*> *processStates;
+@property NSUserDefaults *prefs;
+@property NSUserDefaults *killOnExit;
 @property NSUserDefaults *userBlacklist;
 @property NSDictionary *systemBlacklist;
 
 -(void)addObservers;
+-(void)loadPrefs;
+-(void)loadKillOnExit;
 -(void)loadUserBlacklist;
 -(void)loadSystemBlacklist;
+-(BOOL)shouldKillOnExit:(NSString*)bundleIdentifier;
 -(BOOL)isBlacklisted:(NSString*)bundleIdentifier;
 -(void)terminateAppFromTimer:(NSTimer*)timer;
 -(void)terminateAppSoon:(NSString*)bundleIdentifier;

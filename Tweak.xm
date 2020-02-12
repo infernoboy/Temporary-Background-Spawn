@@ -1,15 +1,21 @@
 #import "Tweak.h"
 
 #if DEBUG
-#define NSLog(args...) NSLog(@"[TempSpawn] "args)
+#define NSLog(args...) NSLog(@"[TempSpawn] "args);
 #else
 #define NSLog(...);
 #endif
 
+#define IOS_VERSION_LESS_THAN(version) ([[[%c(UIDevice) currentDevice] systemVersion] compare:version options:NSNumericSearch] == NSOrderedAscending)
+
 extern "C" void BKSTerminateApplicationForReasonAndReportWithDescription(NSString *bundleIdentifier, int reasonID, bool report, NSString *description);
 
+NSString *prefsPlist = @"com.toggleable.tempspawn";
+NSString *killOnExitPlist = @"com.toggleable.tempspawn~killOnExit";
 NSString *userBlacklistPlist = @"com.toggleable.tempspawn~blacklist";
 NSString *systemBlacklistPlist = @"file:///Library/PreferenceBundles/TempSpawnPreferences.bundle/system-blacklist.plist";
+
+NSString* shortcutsAppIdentifier = (IOS_VERSION_LESS_THAN(@"13.0")) ? @"is.workflow.my.app" : @"com.apple.shortcuts";
 
 long terminateDelay = 30.0;
 
@@ -17,6 +23,14 @@ TempSpawn *tempSpawn;
 
 static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
 	[tempSpawn loadUserBlacklist];
+}
+
+static void killOnExitChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+	[tempSpawn loadKillOnExit];
+}
+
+static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+	[tempSpawn loadPrefs];
 }
 
 
@@ -46,6 +60,8 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 	self.terminationTimers = [NSMutableDictionary dictionary];
 	self.processStates = [NSMutableDictionary dictionary];
 
+	[self loadPrefs];
+	[self loadKillOnExit];
 	[self loadUserBlacklist];
 	[self loadSystemBlacklist];
 
@@ -56,7 +72,33 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationProcessStateDidChange:) name:@"SBApplicationProcessStateDidChange" object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(callStatusChanged:) name:@"TUCallCenterCallStatusChangedNotification" object:nil];
 	
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)prefsChanged, CFSTR("com.toggleable.tempspawn~prefsChanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)killOnExitChanged, CFSTR("com.toggleable.tempspawn~killOnExitChanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
 	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)blacklistChanged, CFSTR("com.toggleable.tempspawn~blacklistChanged"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+}
+
+-(void)loadPrefs {
+	if ([self.prefs isKindOfClass:[NSUserDefaults class]]) {
+		[self.prefs synchronize];
+
+		NSLog(@"Preferences synchronized.");
+	}	else {
+		self.prefs = [[NSUserDefaults alloc] initWithSuiteName:prefsPlist];
+
+		NSLog(@"Preferences loaded: %@", self.prefs);
+	}
+}
+
+-(void)loadKillOnExit {
+	if ([self.killOnExit isKindOfClass:[NSUserDefaults class]]) {
+		[self.killOnExit synchronize];
+
+		NSLog(@"Kill-on-exit list synchronized.");
+	}	else {
+		self.killOnExit = [[NSUserDefaults alloc] initWithSuiteName:killOnExitPlist];
+
+		NSLog(@"Kill-on-exit list loaded: %@", self.killOnExit);
+	}
 }
 
 -(void)loadUserBlacklist {
@@ -85,6 +127,10 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 	NSLog(@"System blacklist loaded: %@", self.systemBlacklist);
 }
 
+-(BOOL)shouldKillOnExit:(NSString*)bundleIdentifier {
+	return [self.killOnExit boolForKey:bundleIdentifier];
+}
+
 -(BOOL)isBlacklisted:(NSString*)bundleIdentifier {
 	return [self.userBlacklist boolForKey:bundleIdentifier] || [self.systemBlacklist[bundleIdentifier] boolValue];
 }
@@ -100,24 +146,36 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 		TempSpawnProcessState *previousProcessState = self.processStates[callAppBundleIdentifier];
 
 		if (previousProcessState) {
-			if ([proxyCall callStatus] == 4) // ringing
+			if ([proxyCall callStatus] == 4) { // ringing
+				[self showDebugNotificationWithTitle:[previousProcessState displayName] message:@"Incoming call from app, cancelled termination timer."];
+
 				[self cancelTerminationTimer:callAppBundleIdentifier];
-			else if ([proxyCall callStatus] == 6 && [previousProcessState launchedInBackground]) // disconnected
-				[self terminateAppNow:callAppBundleIdentifier withReason:@"call disconnected"];
+			} else if ([proxyCall callStatus] == 6 && [previousProcessState launchedInBackground]) { // disconnected
+				if (![self isBlacklisted:callAppBundleIdentifier])
+					[self terminateAppNow:callAppBundleIdentifier withReason:@"Call ended, terminated app."];
+			}
 		}
 	}
 }
 
--(void)showLaunchedInBackgroundNotification:(NSString*)bundleIdentifier {
-	[%c(CPNotification) showAlertWithTitle:nil
-		message:@"Launched in background, will automatically terminate soon."
-		userInfo:nil
-		badgeCount:nil
-		soundName:nil
-		delay:1
-		repeats:NO
-		bundleId:bundleIdentifier
-	];
+-(void)showDebugNotificationWithTitle:(NSString*)title message:(NSString*)message {
+	if ([self.prefs boolForKey:@"debugMode"]) {
+		void *handle = dlopen("/usr/lib/libnotifications.dylib", RTLD_LAZY);
+
+		if (handle != NULL) {
+			[%c(CPNotification) showAlertWithTitle:title
+				message:message
+				userInfo:nil
+				badgeCount:nil
+				soundName:@"none"
+				delay:1
+				repeats:NO
+				bundleId:shortcutsAppIdentifier
+			];
+
+			dlclose(handle);
+		}
+	}
 }
 
 -(void)applicationProcessStateDidChange:(id)notification {
@@ -134,30 +192,39 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 		if ([[app processState] isRunning]) {
 			TempSpawnProcessState *previousProcessState = self.processStates[[app bundleIdentifier]];
 
-			if ([[app processState] taskState] != 3) { // suspended
+			if ([[app processState] taskState] == 3) { // suspended
+				if (previousProcessState && [previousProcessState.processState taskState] != 3 && !previousProcessState.launchedInBackground && [self shouldKillOnExit:[app bundleIdentifier]]) {
+					NSLog(@"Killing app on exit soon: %@", [app bundleIdentifier]);
+
+					[self showDebugNotificationWithTitle:[app displayName] message:@"App is set to kill on close, will terminate soon."];
+
+					[self terminateAppSoon:[app bundleIdentifier]];
+				}
+			} else if ([[app processState] taskState] != 3) { // suspended
 				// NSLog(@"processState: %@ is %lld - taskState: %lld", [app bundleIdentifier], [[app processState] visibility], [[app processState] taskState]);
 
 				if (previousProcessState) {
 					// NSLog(@"previousProcessState for %@: %@", [app bundleIdentifier], previousProcessState);
 
-					if (![previousProcessState launchedInBackground] && [previousProcessState seen]) {
+					if (!previousProcessState.launchedInBackground && [previousProcessState seen] && ![self shouldKillOnExit:[app bundleIdentifier]]) {
 						// NSLog(@"Ignoring already seen app: %@", [app bundleIdentifier]);
 						return;
 					}
 
-					if ([[previousProcessState processState] visibility] == 0 && [[app processState] visibility] == 1) {
+					if (!previousProcessState.launchedInBackground && [[previousProcessState processState] visibility] == 0 && [[app processState] visibility] == 1) {
 						NSLog(@"Launched in background from unknown: %@", [app bundleIdentifier]);
 
 						previousProcessState.launchedInBackground = YES;
 
-						#if DEBUG
-						[self showLaunchedInBackgroundNotification:[app bundleIdentifier]];
-						#endif
-
-						[self terminateAppSoon:[app bundleIdentifier]];
+						if (![self isBlacklisted:[app bundleIdentifier]]) {
+							[self showDebugNotificationWithTitle:[app displayName] message:@"App launched in background, will terminate soon."];
+							[self terminateAppSoon:[app bundleIdentifier]];
+						}
 					} else if ([[app processState] visibility] == 2) {
-						if (previousProcessState.launchedInBackground) {
+						if (previousProcessState.launchedInBackground || [self shouldKillOnExit:[app bundleIdentifier]]) {
 							NSLog(@"Moved to foreground: %@", [app bundleIdentifier]);
+
+							[self showDebugNotificationWithTitle:[app displayName] message:@"App moved to foreground, cancelled termination timer."];
 
 							[self cancelTerminationTimer:[app bundleIdentifier]];
 						}
@@ -167,24 +234,29 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 				} else
 					previousProcessState = [[TempSpawnProcessState alloc] initWithProcessState:[app processState] app:app];
 
-				if ([[app processState] visibility] == 1 && ![previousProcessState launchedInBackground]) {
+				if ([[app processState] visibility] == 1 && !previousProcessState.launchedInBackground && ![self shouldKillOnExit:[app bundleIdentifier]]) {
 					NSLog(@"Launched in background: %@", [app bundleIdentifier]);
 
 					previousProcessState.launchedInBackground = YES;
 
-					#if DEBUG
-					[self showLaunchedInBackgroundNotification:[app bundleIdentifier]];
-					#endif
-
-					[self terminateAppSoon:[app bundleIdentifier]];
+					if (![self isBlacklisted:[app bundleIdentifier]]) {
+						[self showDebugNotificationWithTitle:[app displayName] message:@"App launched in background, will terminate soon."];
+						
+						[self terminateAppSoon:[app bundleIdentifier]];
+					}
 				}
-			} else if ([previousProcessState launchedInBackground]) {
+			} else if (previousProcessState.launchedInBackground) {
 				NSLog(@"App was launched in background, but now suspended: %@", [app bundleIdentifier]);
 
-				[self terminateAppNow:[app bundleIdentifier] withReason:@"background activity completed"];
+				if (![self isBlacklisted:[app bundleIdentifier]]) {
+					[self showDebugNotificationWithTitle:[app displayName] message:@"Launched in background and now suspended, terminated app."];
+
+					[self terminateAppNow:[app bundleIdentifier] withReason:@"background activity completed"];
+				}
 			}
 
 			previousProcessState.processState = [app processState];
+			previousProcessState.displayName = [app displayName];
 			previousProcessState.app = app;
 
 			self.processStates[[app bundleIdentifier]] = previousProcessState;
@@ -197,7 +269,7 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 }
 
 -(void)terminateAppFromTimer:(NSTimer*)timer {
-	[self terminateAppNow:timer.userInfo withReason:@"background time expired"];
+	[self terminateAppNow:timer.userInfo withReason:@"Background time expired, terminated app."];
 }
 
 -(void)cancelTerminationTimer:(NSString*)bundleIdentifier {
@@ -212,11 +284,6 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 }
 
 -(void)terminateAppSoon:(NSString*)bundleIdentifier {
-	if ([self isBlacklisted:bundleIdentifier]) {
-		NSLog(@"terminateAppSoon blacklisted: %@", bundleIdentifier);
-		return;
-	}
-
 	NSLog(@"Terminating soon: %@", bundleIdentifier);
 
 	NSTimer *timer = self.terminationTimers[bundleIdentifier];
@@ -228,11 +295,6 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 }
 
 -(void)terminateAppNow:(NSString*)bundleIdentifier withReason:(NSString*)reason {
-	if ([self isBlacklisted:bundleIdentifier]) {
-		NSLog(@"terminateAppNow blacklisted: %@", bundleIdentifier);
-		return;
-	}
-
 	TempSpawnProcessState *previousProcessState = self.processStates[bundleIdentifier];
 	
 	if (previousProcessState && ([previousProcessState.app isPlayingAudio] || [previousProcessState.app isNowRecordingApplication] || [previousProcessState.app isConnectedToExternalAccessory])) {
@@ -241,6 +303,8 @@ static void blacklistChanged(CFNotificationCenterRef center, void *observer, CFS
 	}
 	
 	NSLog(@"Terminating %@ due to %@", bundleIdentifier, reason);
+
+	[self showDebugNotificationWithTitle:[previousProcessState displayName] message:reason];
 
 	[self cancelTerminationTimer:bundleIdentifier];
 
