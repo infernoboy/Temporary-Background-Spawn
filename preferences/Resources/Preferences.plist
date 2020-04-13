@@ -72,6 +72,24 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
+			<string>VIEW_TRACKER_DESCRIPTION</string>
+			<key>isStaticText</key>
+			<true/>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSLinkCell</string>
+			<key>detail</key>
+			<string>TSTrackerController</string>
+			<key>label</key>
+			<string>VIEW_TRACKER</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
 			<string>DEBUG_MODE_DESCRIPTION</string>
 			<key>isStaticText</key>
 			<true/>

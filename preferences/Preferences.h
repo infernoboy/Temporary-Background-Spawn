@@ -5,3 +5,6 @@
 -(void)openContactMe;
 -(void)openSourceCodeURL;
 @end
+
+@interface TSTrackerController : PSListController
+@end

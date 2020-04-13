@@ -10,6 +10,7 @@ Useful for apps such as:
     * Tile
     * August
     * Nest
+    * Fitbit
     * etc.
 
 Apps playing or recording audio will remain open automatically.";
@@ -17,4 +18,6 @@ Apps playing or recording audio will remain open automatically.";
 	"KILL_ON_EXIT_DESCRIPTION" = "Apps selected here will be killed after 30 seconds when you exit them or lock your device.";
 	"DEBUG_MODE" = "Debug Notifications";
 	"DEBUG_MODE_DESCRIPTION" = "Display a notification whenever the state of background apps change. Notifications will appear from the Shortcuts app to ensure they actually show up.";
+	"VIEW_TRACKER" = "View tracked app launches";
+	"VIEW_TRACKER_DESCRIPTION" = "Shows how many times an app was launched in the background.";
 }

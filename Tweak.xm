@@ -37,7 +37,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 @implementation TempSpawnTracker
 
 +(NSArray*)tracked {
-	return @[@"backgroundLaunched", @"backgroundTerminated", @"terminationCancelled"];
+	return @[@"backgroundLaunched", @"backgroundTerminated", @"cancelledTermination"];
 }
 
 -(TempSpawnTracker*)initWithApp:(SBApplication*)app {
@@ -286,7 +286,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 						if (![self isBlacklisted:[app bundleIdentifier]]) {
 							[self showDebugNotificationWithTitle:[app displayName]
-								message:[NSString stringWithFormat:@"App launched in background, will terminate soon.\n\nBackground launches: %@, background terminations: %@, cancelled terminations: %@", previousProcessState.tracker.counts[@"backgroundLaunched"], previousProcessState.tracker.counts[@"backgroundTerminated"], previousProcessState.tracker.counts[@"terminationCancelled"]]
+								message:[NSString stringWithFormat:@"App launched in background, will terminate soon.\n\nBackground launches: %@, background terminations: %@, cancelled terminations: %@", previousProcessState.tracker.counts[@"backgroundLaunched"], previousProcessState.tracker.counts[@"backgroundTerminated"], previousProcessState.tracker.counts[@"cancelledTermination"]]
 							];
 
 							[self terminateAppSoon:[app bundleIdentifier]];
@@ -316,7 +316,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 					if (![self isBlacklisted:[app bundleIdentifier]]) {
 						[self showDebugNotificationWithTitle:[app displayName]
-							message:[NSString stringWithFormat:@"App launched in background, will terminate soon.\n\nBackground launches: %@, background terminations: %@, cancelled terminations: %@", previousProcessState.tracker.counts[@"backgroundLaunched"], previousProcessState.tracker.counts[@"backgroundTerminated"], previousProcessState.tracker.counts[@"terminationCancelled"]]
+							message:[NSString stringWithFormat:@"App launched in background, will terminate soon.\n\nBackground launches: %@, background terminations: %@, cancelled terminations: %@", previousProcessState.tracker.counts[@"backgroundLaunched"], previousProcessState.tracker.counts[@"backgroundTerminated"], previousProcessState.tracker.counts[@"cancelledTermination"]]
 						];
 						
 						[self terminateAppSoon:[app bundleIdentifier]];
