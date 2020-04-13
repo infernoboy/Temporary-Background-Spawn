@@ -15,12 +15,25 @@
 -(BOOL)isConnectedToExternalAccessory;
 @end
 
+@interface TempSpawnTracker : NSObject
+@property NSMutableDictionary<NSString*, NSNumber*> *counts;
+@property SBApplication* app;
+
++(NSArray*)tracked;
+
+-(TempSpawnTracker*)initWithApp:(SBApplication*)app;
+-(void)launchedInBackground;
+-(void)terminatedInBackground;
+-(void)cancelledTermination;
+@end
+
 @interface TempSpawnProcessState : NSObject
 @property BOOL seen;
 @property (nonatomic) BOOL launchedInBackground;
 @property SBApplicationProcessState *processState;
 @property NSString *displayName;
 @property SBApplication *app;
+@property TempSpawnTracker *tracker;
 @end;
 
 @interface TempSpawn : NSObject
@@ -28,6 +41,7 @@
 @property NSMutableDictionary<NSString*, TempSpawnProcessState*> *processStates;
 @property NSUserDefaults *prefs;
 @property NSUserDefaults *killOnExit;
+@property NSUserDefaults *trackerList;
 @property NSUserDefaults *userBlacklist;
 @property NSDictionary *systemBlacklist;
 
