@@ -44,7 +44,9 @@
 @property NSUserDefaults *trackerList;
 @property NSUserDefaults *userBlacklist;
 @property NSDictionary *systemBlacklist;
+@property (retain) NSBundle *prefBundle;
 
+-(NSString*)localizedString:(NSString*)string;
 -(void)addObservers;
 -(void)loadPrefs;
 -(void)loadKillOnExit;

@@ -46,9 +46,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 	NSDictionary *data = [tempSpawn.trackerList dictionaryForKey:[app bundleIdentifier]];
 
-	if ([data count] == 0) {
-		[tempSpawn.trackerList setObject:[app displayName] forKey:[[app bundleIdentifier] stringByAppendingString:@"~displayName"]];
-	}
+	[tempSpawn.trackerList setObject:[app displayName] forKey:[[app bundleIdentifier] stringByAppendingString:@"~displayName"]];
 
 	for (NSString *type in TempSpawnTracker.tracked)
 		[self.counts setObject:[NSNumber numberWithInt:[data[type] integerValue]] ?: 0 forKey:type];
@@ -85,7 +83,6 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 	self.seen = NO;
 	self.processState = processState;
 	self.app = app;
-	self.tracker = [[TempSpawnTracker alloc] initWithApp:app];
 
 	return self;
 }
@@ -102,6 +99,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 -(TempSpawn*)init {
 	self.terminationTimers = [NSMutableDictionary dictionary];
 	self.processStates = [NSMutableDictionary dictionary];
+	self.prefBundle = [NSBundle bundleWithPath:@"/Library/PreferenceBundles/TempSpawnPreferences.bundle"];
 
 	[self loadPrefs];
 	[self loadKillOnExit];
@@ -110,6 +108,10 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 	[self loadSystemBlacklist];
 
 	return self;
+}
+
+-(NSString*)localizedString:(NSString*)string {
+	return [self.prefBundle localizedStringForKey:string value:string table:@"Preferences"];
 }
 
 -(void)addObservers {
@@ -211,11 +213,11 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 		if (previousProcessState) {
 			if ([proxyCall callStatus] == 4) { // ringing
-				[self showDebugNotificationWithTitle:[previousProcessState displayName] message:@"Incoming call from app, cancelled termination timer."];
+				[self showDebugNotificationWithTitle:[previousProcessState displayName] message:[self localizedString:@"INCOMING_CALL"]];
 
 				[self cancelTerminationTimer:callAppBundleIdentifier];
 
-				[previousProcessState.tracker cancelledTermination];
+				[[[TempSpawnTracker alloc] initWithApp:previousProcessState.app] cancelledTermination];
 			} else if ([proxyCall callStatus] == 6 && [previousProcessState launchedInBackground]) { // disconnected
 				if (![self isBlacklisted:callAppBundleIdentifier])
 					[self terminateAppNow:callAppBundleIdentifier withReason:@"Call ended, terminated app."];
@@ -257,12 +259,13 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 		if ([[app processState] isRunning]) {
 			TempSpawnProcessState *previousProcessState = self.processStates[[app bundleIdentifier]];
+			TempSpawnTracker *tracker = [[TempSpawnTracker alloc] initWithApp:app];
 
 			if ([[app processState] taskState] == 3) { // suspended
 				if (previousProcessState && [previousProcessState.processState taskState] != 3 && !previousProcessState.launchedInBackground && [self shouldKillOnExit:[app bundleIdentifier]]) {
 					NSLog(@"Killing app on exit soon: %@", [app bundleIdentifier]);
 
-					[self showDebugNotificationWithTitle:[app displayName] message:@"App is set to kill on close, will terminate soon."];
+					[self showDebugNotificationWithTitle:[app displayName] message:[self localizedString:@"KILL_ON_EXIT_SOON"]];
 
 					[self terminateAppSoon:[app bundleIdentifier]];
 				}
@@ -282,11 +285,11 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 						previousProcessState.launchedInBackground = YES;
 
-						[previousProcessState.tracker launchedInBackground];
+						[tracker launchedInBackground];
 
 						if (![self isBlacklisted:[app bundleIdentifier]]) {
 							[self showDebugNotificationWithTitle:[app displayName]
-								message:[NSString stringWithFormat:@"App launched in background, will terminate soon.\n\nBackground launches: %@, background terminations: %@, cancelled terminations: %@", previousProcessState.tracker.counts[@"backgroundLaunched"], previousProcessState.tracker.counts[@"backgroundTerminated"], previousProcessState.tracker.counts[@"cancelledTermination"]]
+								message:[NSString stringWithFormat:[self localizedString:@"LAUNCHED_TERMINATE_SOON"], tracker.counts[@"backgroundLaunched"], tracker.counts[@"backgroundTerminated"], tracker.counts[@"cancelledTermination"]]
 							];
 
 							[self terminateAppSoon:[app bundleIdentifier]];
@@ -295,9 +298,9 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 						if (previousProcessState.launchedInBackground || [self shouldKillOnExit:[app bundleIdentifier]]) {
 							NSLog(@"Moved to foreground: %@", [app bundleIdentifier]);
 
-							[previousProcessState.tracker cancelledTermination];
+							[tracker cancelledTermination];
 
-							[self showDebugNotificationWithTitle:[app displayName] message:@"App moved to foreground, cancelled termination timer."];
+							[self showDebugNotificationWithTitle:[app displayName] message:[self localizedString:@"APP_FOREGROUNDED"]];
 
 							[self cancelTerminationTimer:[app bundleIdentifier]];
 						}
@@ -312,11 +315,11 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 					previousProcessState.launchedInBackground = YES;
 
-					[previousProcessState.tracker launchedInBackground];
+					[tracker launchedInBackground];
 
 					if (![self isBlacklisted:[app bundleIdentifier]]) {
 						[self showDebugNotificationWithTitle:[app displayName]
-							message:[NSString stringWithFormat:@"App launched in background, will terminate soon.\n\nBackground launches: %@, background terminations: %@, cancelled terminations: %@", previousProcessState.tracker.counts[@"backgroundLaunched"], previousProcessState.tracker.counts[@"backgroundTerminated"], previousProcessState.tracker.counts[@"cancelledTermination"]]
+							message:[NSString stringWithFormat:[self localizedString:@"LAUNCHED_TERMINATE_SOON"], tracker.counts[@"backgroundLaunched"], tracker.counts[@"backgroundTerminated"], tracker.counts[@"cancelledTermination"]]
 						];
 						
 						[self terminateAppSoon:[app bundleIdentifier]];
@@ -326,7 +329,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 				NSLog(@"App was launched in background, but now suspended: %@", [app bundleIdentifier]);
 
 				if (![self isBlacklisted:[app bundleIdentifier]]) {
-					[self showDebugNotificationWithTitle:[app displayName] message:@"Launched in background and now suspended, terminated app."];
+					[self showDebugNotificationWithTitle:[app displayName] message:[self localizedString:@"LAUNCHED_SUSPENDED"]];
 
 					[self terminateAppNow:[app bundleIdentifier] withReason:@"background activity completed"];
 				}
@@ -385,7 +388,7 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 
 	[self cancelTerminationTimer:bundleIdentifier];
 
-	[previousProcessState.tracker terminatedInBackground];
+	[[[TempSpawnTracker alloc] initWithApp:previousProcessState.app] terminatedInBackground];
 
 	BKSTerminateApplicationForReasonAndReportWithDescription(bundleIdentifier, 1, NO, [NSString stringWithFormat:@"[TempSpawn] %@", reason]);
 }

@@ -16,8 +16,22 @@ Useful for apps such as:
 Apps playing or recording audio will remain open automatically.";
 	"KILL_ON_EXIT" = "Apps to kill upon exiting";
 	"KILL_ON_EXIT_DESCRIPTION" = "Apps selected here will be killed after 30 seconds when you exit them or lock your device.";
-	"DEBUG_MODE" = "Debug Notifications";
+	"DEBUG_MODE" = "Debug notifications";
 	"DEBUG_MODE_DESCRIPTION" = "Display a notification whenever the state of background apps change. Notifications will appear from the Shortcuts app to ensure they actually show up.";
 	"VIEW_TRACKER" = "View tracked app launches";
 	"VIEW_TRACKER_DESCRIPTION" = "Shows how many times an app was launched in the background.";
+		"TRACKER_SHOW_SYSTEM" = "Show blacklisted system apps";
+		"CANCEL" = "Cancel";
+		"CLEAR_ALL" = "Clear All";
+		"CLEAR_ALL_MESSAGE" = "Clear all entries, including blacklisted system apps?";
+		"SYSTEM_BLACKLIST_ERROR" = "System blacklist not found or corrupted.";
+		"NO_APPS_TRACKED" = "No apps have been tracked yet.";
+		"TRACKED_APP_DESCRIPTION" = "Launches: %@, terminations: %@, cancelled terminations: %@";
+	"INCOMING_CALL" = "Incoming call from app, cancelled termination timer.";
+	"KILL_ON_EXIT_SOON" = "App is set to kill on exit, will terminate soon.";
+	"LAUNCHED_TERMINATE_SOON" = "App launched in background, will terminate soon.
+
+Background launches: %@, terminations: %@, cancelled terminations: %@";
+	"APP_FOREGROUNDED" = "App moved to foreground, cancelled termination timer.";
+	"LAUNCHED_SUSPENDED" = "Launched in background and now suspended, terminated app.";
 }

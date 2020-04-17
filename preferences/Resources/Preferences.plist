@@ -88,6 +88,19 @@
 
 		<dict>
 			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.toggleable.tempspawn</string>
+			<key>label</key>
+			<string>TRACKER_SHOW_SYSTEM</string>
+			<key>key</key>
+			<string>trackerShowSystem</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
 			<string>DEBUG_MODE_DESCRIPTION</string>
